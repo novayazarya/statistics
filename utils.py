@@ -68,6 +68,7 @@ def t_test(
 
     Returns
     -------
+    t_statistic : float
     lower_diff : float
     mean_diff : float
     upper_diff : float
@@ -88,14 +89,37 @@ def t_test(
     t_sd = np.sqrt(se_a + se_b)
     t_statistic = (mb - ma) / t_sd
    
-    df_t = ((se_a + se_b) ** 2) / ((se_a ** 2) + (se_b ** 2) / (na + nb - 2))
+    df_t = (se_a + se_b) ** 2 / (se_a ** 2 / (na - 1) + se_b ** 2 / (nb - 1))
     ci = stats.t.ppf(1 - alpha / 2, df=df_t) * t_sd
     
     ma_or_one = ma * pct or 1 # ma if pct=True else 1
-    lower_diff = mb - ma - ci / ma_or_one 
-    mean_diff = mb - ma / ma_or_one
-    upper_diff = mb - ma + ci / ma_or_one
+    lower_diff = (mb - ma - ci) / ma_or_one 
+    mean_diff = (mb - ma) / ma_or_one
+    upper_diff = (mb - ma + ci) / ma_or_one
     sd_diff = t_sd / ma_or_one
     p_val = 2 * stats.t.cdf(-abs(t_statistic), df=df_t)
     
-    return lower_diff, mean_diff, upper_diff, sd_diff, p_val
+    return t_statistic, lower_diff, mean_diff, upper_diff, sd_diff, p_val
+
+# Auto Welch's T-Test (sample N > 150)
+# Same result as the above
+# sts.ttest_ind(a, b, equal_var=False)
+
+# Sample Size Calculations
+# Based on t-test with equal variance (equivalent to z-test on pooled variance).
+# This gives you a lower bound for each bucket's sample size given the 
+# minimum detectable effect (delta) you want to see.  
+# If you're calculating percentage deltas, remember to take the percentage 
+# variance (eg. STDDEV(x) / AVG(x))
+
+def get_power(stdev: float, n: int, delta: float, alpha: float = .05) -> float:
+    zcr = stats.norm.ppf(1 - alpha)
+    s = stdev / np.sqrt(n)
+    power = 1 - stats.norm.cdf(zcr, delta / s, 1)
+    return power
+
+def get_size(stdev: float, delta: float, alpha: float = .05, power: float = .8) -> float:
+    zcra = stats.norm.ppf(1 - alpha)
+    zcrb = stats.norm.ppf(power)
+    n = round((((zcra + zcrb) * stdev) / delta) ** 2)
+    return n
